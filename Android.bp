@@ -36,6 +36,8 @@ android_app {
     optimize: {
         enabled: false,
     },
+
+    system_ext_specific: true,
 }
 
 // Enumerate target prebuilts to avoid linker warnings
