@@ -33,6 +33,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     <string name="wallpaper_location_local">本機</string>
     <string name="download_wallpaper_notice">桌布下載中</string>
     <string name="download_wallpaper_failed_notice">桌布下載失敗</string>
+    <string name="wallpaper_location_remote">線上</string>
     <string name="no_network_message">沒有網路連線</string>
     <string name="download_wallpaper_list_failed_notice">讀取桌布目錄失敗</string>
     <string name="wallpaper_default_name">桌布</string>
@@ -40,6 +41,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     <string name="browse_theme_header">下滑選單主題</string>
     <string name="pick_theme">選擇主題</string>
     <string name="theme_disable">預設</string>
+    <string name="pick_header">選擇頂部圖片</string>
     <string name="sort_by_creator_menu">以創造者排序</string>
     <string name="sort_by_tag_menu">以類型排序</string>
     <string name="sort_by_default_menu">以名稱排序</string>
@@ -53,4 +55,5 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     <string name="theme_compose">自定義</string>
     <string name="button_apply">套用</string>
     <string name="notification_overlay_info">修改通知欄後\n需重新啟動</string>
+    <string name="header_location_online">線上</string>
 </resources>
