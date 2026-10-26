@@ -17,25 +17,16 @@
  */
 package org.omnirom.omnistyle;
 
-import android.Manifest;
-import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.content.res.Configuration;
 import android.content.res.Resources;
-import android.media.MediaScannerConnection;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
-import android.net.Uri;
-import android.os.AsyncTask;
 import android.os.Bundle;
-import android.os.Environment;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.Gravity;
-import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
@@ -43,7 +34,6 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.ProgressBar;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -52,82 +42,31 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.squareup.picasso.Picasso;
-
-import org.json.JSONArray;
-import org.json.JSONObject;
 import org.omnirom.omnistyle.HeaderUtils.DaylightHeaderInfo;
 
-import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class BrowseHeaderActivity extends AppCompatActivity {
 
     private static final String TAG = "BrowseHeaderActivity";
-    private static final String HEADERS_LIST_URI = "https://dl.omnirom.org/images/headers/thumbs/json_headers_xml.php";
-    private static final String HEADERS_THUMB_URI = "https://dl.omnirom.org/images/headers/thumbs/";
-    private static final String HEADERS_FULL_URI = "https://dl.omnirom.org/images/headers/";
-    private static final String DEFAULT_CREATOR = "unkown";
-    private static final String DEFAULT_TAG = "other";
-    private static final boolean DEBUG = false;
-    private static final int FILTER_BY_TAG = 1;
 
-    private List<DaylightHeaderInfo> mHeadersList;
-    private List<RemoteHeaderInfo> mRemoteHeadersList;
-    private List<RemoteHeaderInfo> mFilterRemoteHeadersList;
+    private List<DaylightHeaderInfo> mHeadersList = new ArrayList<>();
     private Resources mRes;
     private String mPackageName;
     private String mHeaderName;
     private RecyclerView mHeaderListView;
     private Spinner mHeaderSelect;
-    private Map<String, String> mHeaderMap;
-    private List<String> mLabelList;
+    private Map<String, String> mHeaderMap = new HashMap<>();
+    private List<String> mLabelList = new ArrayList<>();
     private HeaderListAdapter mHeaderListAdapter;
-    private RemoteHeaderListAdapter mRemoteHeaderListAdapter;
-    private ProgressBar mProgress;
     private TextView mCreatorName;
     private String mCreatorLabel;
     private String mCreator;
     protected boolean mPickerMode;
-    private Runnable mDoAfter;
-    private Set<String> mTagList = new HashSet<>();
-    private List<String> mTagSortedList = new ArrayList<>();
-    private List<String> mTagDisplayList = new ArrayList<>();
-    private Set<String> mCreatorList = new HashSet<>();
-    ArrayAdapter<CharSequence> mSelectSpinnerAdapter;
-    private boolean mRemoteMode;
-    private boolean mRemoteLoaded;
-    private List<File> mCleanupTmpFiles = new ArrayList<>();
-    private MenuItem mMenuItem;
-    private boolean mReloading;
-    private Spinner mLocationSelect;
-
-    private static final int PERMISSIONS_REQUEST_EXTERNAL_STORAGE = 0;
-
-    private class RemoteHeaderInfo {
-        public String mImage;
-        public String mUri;
-        public String mThumbUri;
-        public String mCreator;
-        public String mDisplayName;
-        public String mTag;
-
-        public boolean matches(int filterCriteria, String filterString) {
-            if (filterCriteria == FILTER_BY_TAG) {
-                return !TextUtils.isEmpty(mTag) && mTag.equals(filterString);
-            }
-            return false;
-        }
-    }
 
     public class HeaderListAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
@@ -139,16 +78,15 @@ public class BrowseHeaderActivity extends AppCompatActivity {
 
         @Override
         public void onBindViewHolder(RecyclerView.ViewHolder h, int position) {
-            final HeaderImageHolder holder = (HeaderImageHolder) h;
-
-            DaylightHeaderInfo di = mHeadersList.get(position);
-            int resId = mRes.getIdentifier(di.mImage, "drawable", mPackageName);
+            HeaderImageHolder holder = (HeaderImageHolder) h;
+            DaylightHeaderInfo info = mHeadersList.get(position);
+            int resId = mRes != null ? mRes.getIdentifier(info.mImage, "drawable", mPackageName) : 0;
             if (resId != 0) {
                 holder.mHeaderImage.setImageDrawable(mRes.getDrawable(resId, null));
             } else {
                 holder.mHeaderImage.setImageDrawable(null);
             }
-            holder.mHeaderName.setText(di.mName != null ? di.mName : di.mImage);
+            holder.mHeaderName.setText(info.mName != null ? info.mName : info.mImage);
         }
 
         @Override
@@ -158,92 +96,29 @@ public class BrowseHeaderActivity extends AppCompatActivity {
     }
 
     class HeaderImageHolder extends RecyclerView.ViewHolder implements View.OnClickListener {
-        public View rootView;
         public ImageView mHeaderImage;
         public TextView mHeaderName;
 
         HeaderImageHolder(View itemView) {
             super(itemView);
-            rootView = itemView;
             mHeaderImage = (ImageView) itemView.findViewById(R.id.header_image);
             mHeaderName = (TextView) itemView.findViewById(R.id.header_name);
-            rootView.setOnClickListener(this);
+            itemView.setOnClickListener(this);
         }
 
         @Override
         public void onClick(View view) {
-            if (mReloading) {
+            int position = getAdapterPosition();
+            if (!mPickerMode || position < 0 || position >= mHeadersList.size()) {
                 return;
             }
-            int position = getAdapterPosition();
-            if (mPickerMode) {
-                DaylightHeaderInfo di = mHeadersList.get(position);
-                Settings.System.putString(getContentResolver(), Settings.System.STATUS_BAR_CUSTOM_HEADER_IMAGE, mPackageName + "/" + di.mImage);
-                Settings.System.putString(getContentResolver(), Settings.System.STATUS_BAR_CUSTOM_HEADER_PROVIDER, "static");
-                Toast.makeText(BrowseHeaderActivity.this, R.string.custom_header_image_notice, Toast.LENGTH_LONG).show();
-            }
-        }
-    }
-
-    public class RemoteHeaderListAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
-
-        @Override
-        public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
-            View view = getLayoutInflater().inflate(R.layout.header_image, parent, false);
-            return new RemoteHeaderImageHolder(view);
-        }
-
-        @Override
-        public void onBindViewHolder(RecyclerView.ViewHolder h, int position) {
-            final RemoteHeaderImageHolder holder = (RemoteHeaderImageHolder) h;
-
-            try {
-                RemoteHeaderInfo di = mFilterRemoteHeadersList.get(position);
-                Picasso.with(BrowseHeaderActivity.this).load(di.mThumbUri).into(holder.mHeaderImage);
-
-                holder.mHeaderName.setVisibility(TextUtils.isEmpty(di.mDisplayName) ? View.GONE : View.VISIBLE);
-                holder.mHeaderName.setText(di.mDisplayName);
-            } catch (Exception e) {
-                holder.mHeaderImage.setImageDrawable(null);
-            }
-        }
-
-        @Override
-        public int getItemCount() {
-            return mFilterRemoteHeadersList.size();
-        }
-    }
-
-    class RemoteHeaderImageHolder extends RecyclerView.ViewHolder implements View.OnClickListener, View.OnLongClickListener {
-        public View rootView;
-        public ImageView mHeaderImage;
-        public TextView mHeaderName;
-
-        RemoteHeaderImageHolder(View itemView) {
-            super(itemView);
-            rootView = itemView;
-            mHeaderImage = (ImageView) itemView.findViewById(R.id.header_image);
-            mHeaderName = (TextView) itemView.findViewById(R.id.header_name);
-            rootView.setOnClickListener(this);
-            rootView.setOnLongClickListener(this);
-        }
-
-        @Override
-        public void onClick(View view) {
-            if (mReloading) {
-                return;
-            }
-            if (mPickerMode) {
-                int position = getAdapterPosition();
-                doSetRemoteHeader(position);
-            }
-        }
-
-        @Override
-        public boolean onLongClick(View view) {
-            int position = getAdapterPosition();
-            downloadRemoteHeader(position);
-            return true;
+            DaylightHeaderInfo info = mHeadersList.get(position);
+            Settings.System.putString(getContentResolver(),
+                    Settings.System.STATUS_BAR_CUSTOM_HEADER_IMAGE, mPackageName + "/" + info.mImage);
+            Settings.System.putString(getContentResolver(),
+                    Settings.System.STATUS_BAR_CUSTOM_HEADER_PROVIDER, "static");
+            Toast.makeText(BrowseHeaderActivity.this, R.string.custom_header_image_notice,
+                    Toast.LENGTH_LONG).show();
         }
     }
 
@@ -252,90 +127,41 @@ public class BrowseHeaderActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.content_browse);
 
-        mProgress = (ProgressBar) findViewById(R.id.browse_progress);
         mHeaderSelect = (Spinner) findViewById(R.id.package_select);
-        mLocationSelect = (Spinner) findViewById(R.id.location_select);
         mCreatorName = (TextView) findViewById(R.id.meta_creator);
         mCreatorLabel = getResources().getString(R.string.header_creator_label);
-        mHeaderMap = new HashMap<String, String>();
-        mLabelList = new ArrayList<String>();
-        getAvailableHeaderPacks(mHeaderMap);
+        getAvailableHeaderPacks();
 
-        mSelectSpinnerAdapter = new ArrayAdapter(this,
-                R.layout.spinner_item);
-        mHeaderSelect.setAdapter(mSelectSpinnerAdapter);
-
-        mHeaderSelect.setOnItemSelectedListener(new Spinner.OnItemSelectedListener() {
+        ArrayAdapter<CharSequence> adapter = new ArrayAdapter<>(this, R.layout.spinner_item);
+        adapter.addAll(mLabelList);
+        mHeaderSelect.setAdapter(adapter);
+        mHeaderSelect.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                if (!mRemoteMode) {
-                    String label = mLabelList.get(position);
-                    loadHeaderPackage(mHeaderMap.get(label));
-                    //mCreatorName.setVisibility(TextUtils.isEmpty(mCreator) ? View.GONE : View.VISIBLE);
-                    mCreatorName.setText(mCreatorLabel + mCreator);
-                    mHeaderListAdapter.notifyDataSetChanged();
-                } else {
-                    filterRemoteWallpapers(FILTER_BY_TAG, mTagSortedList.get(position));
+                if (position < 0 || position >= mLabelList.size()) {
+                    return;
                 }
+                loadHeaderPackage(mHeaderMap.get(mLabelList.get(position)));
+                mCreatorName.setText(mCreatorLabel + mCreator);
+                mCreatorName.setVisibility(TextUtils.isEmpty(mCreator) ? View.GONE : View.VISIBLE);
+                mHeaderListAdapter.notifyDataSetChanged();
             }
 
             @Override
-            public void onNothingSelected(AdapterView<?> arg0) {
+            public void onNothingSelected(AdapterView<?> parent) {
             }
         });
 
-        String[] locationList = getResources().getStringArray(R.array.location_list);
-        ArrayAdapter<CharSequence> adapter = new ArrayAdapter(this,
-                R.layout.spinner_item, locationList);
-        mLocationSelect.setAdapter(adapter);
-
-        mLocationSelect.setOnItemSelectedListener(new Spinner.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                mRemoteMode = position != 0;
-                if (position == 0) {
-                    showLocal();
-                } else {
-                    if (isNetworkAvailable()) {
-                        showRemote();
-                    } else {
-                        Toast.makeText(BrowseHeaderActivity.this, R.string.no_network_message, Toast.LENGTH_LONG).show();
-                    }
-                }
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> arg0) {
-            }
-        });
-
-        mHeadersList = new ArrayList<DaylightHeaderInfo>();
         mHeaderListView = (RecyclerView) findViewById(R.id.package_images);
         layoutHeaderList(getResources().getConfiguration());
-
         mHeaderListView.setLayoutManager(new GridLayoutManager(this, 1));
         mHeaderListView.setHasFixedSize(false);
         mHeaderListAdapter = new HeaderListAdapter();
+        mHeaderListView.setAdapter(mHeaderListAdapter);
 
-        loadHeaderPackage(mHeaderMap.get(mLabelList.get(0)));
-        mHeaderListAdapter.notifyDataSetChanged();
-
-        mRemoteHeadersList = new ArrayList<RemoteHeaderInfo>();
-        mFilterRemoteHeadersList = new ArrayList<RemoteHeaderInfo>();
-        mRemoteHeaderListAdapter = new RemoteHeaderListAdapter();
-
-        showLocal();
-    }
-
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
-        for (File file : mCleanupTmpFiles) {
-            if (file.exists()) {
-                file.delete();
-            }
+        if (mLabelList.isEmpty()) {
+            Log.w(TAG, "No header packs installed");
         }
-        mCleanupTmpFiles.clear();
     }
 
     @Override
@@ -346,326 +172,70 @@ public class BrowseHeaderActivity extends AppCompatActivity {
         return true;
     }
 
-    private void getAvailableHeaderPacks(Map<String, String> headerMap) {
-        Intent i = new Intent();
+    private void getAvailableHeaderPacks() {
         PackageManager packageManager = getPackageManager();
-        i.setAction("org.omnirom.DaylightHeaderPack");
-        for (ResolveInfo r : packageManager.queryIntentActivities(i, 0)) {
-            String packageName = r.activityInfo.packageName;
-            String label = r.activityInfo.loadLabel(getPackageManager()).toString();
-            if (label == null) {
-                label = r.activityInfo.packageName;
-            }
-            headerMap.put(label, packageName);
+        Intent intent = new Intent("org.omnirom.DaylightHeaderPack");
+        for (ResolveInfo info : packageManager.queryIntentActivities(intent, 0)) {
+            String packageName = info.activityInfo.packageName;
+            CharSequence loaded = info.activityInfo.loadLabel(packageManager);
+            String label = loaded != null ? loaded.toString() : packageName;
+            mHeaderMap.put(label, packageName);
         }
-        i.setAction("org.omnirom.DaylightHeaderPack1");
-        for (ResolveInfo r : packageManager.queryIntentActivities(i, 0)) {
-            String packageName = r.activityInfo.packageName;
-            String label = r.activityInfo.loadLabel(getPackageManager()).toString();
-            if (label == null) {
-                label = packageName;
-            }
-            headerMap.put(label, packageName + "/" + r.activityInfo.name);
+        intent.setAction("org.omnirom.DaylightHeaderPack1");
+        for (ResolveInfo info : packageManager.queryIntentActivities(intent, 0)) {
+            String packageName = info.activityInfo.packageName;
+            CharSequence loaded = info.activityInfo.loadLabel(packageManager);
+            String label = loaded != null ? loaded.toString() : packageName;
+            mHeaderMap.put(label, packageName + "/" + info.activityInfo.name);
         }
-        mLabelList.addAll(headerMap.keySet());
+        mLabelList.addAll(mHeaderMap.keySet());
         Collections.sort(mLabelList);
     }
 
     private void loadHeaderPackage(String label) {
-        if (DEBUG) Log.i(TAG, "Load header pack " + label);
-        mProgress.setVisibility(View.VISIBLE);
-        int idx = label.indexOf("/");
-        if (idx != -1) {
-            String[] parts = label.split("/");
-            mPackageName = parts[0];
-            mHeaderName = parts[1];
+        if (label == null) {
+            mRes = null;
+            mHeadersList.clear();
+            return;
+        }
+        int separator = label.indexOf('/');
+        if (separator != -1) {
+            mPackageName = label.substring(0, separator);
+            mHeaderName = label.substring(separator + 1);
         } else {
             mPackageName = label;
             mHeaderName = null;
         }
         try {
-            PackageManager packageManager = getPackageManager();
-            mRes = packageManager.getResourcesForApplication(mPackageName);
+            mRes = getPackageManager().getResourcesForApplication(mPackageName);
             mCreator = HeaderUtils.loadHeaders(mRes, mHeaderName, mHeadersList);
         } catch (Exception e) {
-            Log.e(TAG, "Failed to load header pack " + mHeaderName, e);
+            Log.e(TAG, "Failed to load header pack " + label, e);
             mRes = null;
+            mCreator = null;
+            mHeadersList.clear();
         }
-        mProgress.setVisibility(View.GONE);
     }
 
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         layoutHeaderList(newConfig);
-        GridLayoutManager manager = (GridLayoutManager) mHeaderListView.getLayoutManager();
-        manager.requestLayout();
+        mHeaderListView.getLayoutManager().requestLayout();
     }
 
     private void layoutHeaderList(Configuration configuration) {
+        LinearLayout.LayoutParams params;
         if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
-            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(getResources().getDimensionPixelOffset(R.dimen.header_notification_width_landscape),
+            params = new LinearLayout.LayoutParams(
+                    getResources().getDimensionPixelOffset(R.dimen.header_notification_width_landscape),
                     ViewGroup.LayoutParams.MATCH_PARENT);
-            params.gravity = Gravity.CENTER_HORIZONTAL;
-            mHeaderListView.setLayoutParams(params);
         } else {
-            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+            params = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT);
-            params.gravity = Gravity.CENTER_HORIZONTAL;
-            mHeaderListView.setLayoutParams(params);
         }
-    }
-
-    private boolean isNetworkAvailable() {
-        ConnectivityManager connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-        NetworkInfo activeNetwork = connectivityManager.getActiveNetworkInfo();
-        if (activeNetwork != null && activeNetwork.isConnected()) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-
-    private class FetchHeaderListTask extends AsyncTask<Void, Void, Void> {
-        private boolean mError;
-
-        @Override
-        protected Void doInBackground(Void... params) {
-            mReloading = true;
-            mRemoteHeadersList.clear();
-            mFilterRemoteHeadersList.clear();
-            mTagList.clear();
-            mCreatorList.clear();
-            mError = false;
-            List<RemoteHeaderInfo> wallpaperList = getHeadersList();
-            if (wallpaperList != null) {
-                mRemoteHeadersList.addAll(wallpaperList);
-                mFilterRemoteHeadersList.addAll(wallpaperList);
-            } else {
-                mError = true;
-            }
-            return null;
-        }
-
-        @Override
-        protected void onPostExecute(Void feed) {
-            mProgress.setVisibility(View.GONE);
-            if (mError) {
-                Toast.makeText(BrowseHeaderActivity.this, R.string.download_wallpaper_list_failed_notice, Toast.LENGTH_LONG).show();
-            } else {
-                mRemoteLoaded = true;
-                mTagSortedList.clear();
-                mTagSortedList.addAll(mTagList);
-                Collections.sort(mTagSortedList);
-                if (!mTagList.contains(DEFAULT_TAG)) {
-                    mTagSortedList.add(DEFAULT_TAG);
-                }
-                mTagDisplayList.clear();
-                for (String s : mTagSortedList) {
-                    mTagDisplayList.add(s.substring(0, 1).toUpperCase() + s.substring(1));
-                }
-                showRemote();
-            }
-            mReloading = false;
-        }
-    }
-
-    private class FetchHeaderTask extends AsyncTask<String, Void, Void> {
-        private String mHeaderFile;
-        private boolean mDownloadOnly;
-
-        public FetchHeaderTask(boolean downloadOnly) {
-            mDownloadOnly = downloadOnly;
-        }
-
-        @Override
-        protected Void doInBackground(String... params) {
-            String uri = params[0];
-            mHeaderFile = params[1];
-            if (new File(mHeaderFile).exists()) {
-                new File(mHeaderFile).delete();
-            }
-            NetworkUtils.downloadUrlFile(uri, new File(mHeaderFile));
-            return null;
-        }
-
-        @Override
-        protected void onPostExecute(Void feed) {
-            mProgress.setVisibility(View.GONE);
-            if (!mDownloadOnly) {
-                doSetRemoteHeaderPost(mHeaderFile);
-            } else {
-                MediaScannerConnection.scanFile(BrowseHeaderActivity.this,
-                        new String[] { mHeaderFile }, null, null);
-            }
-        }
-    }
-
-    private void runWithStoragePermissions(Runnable doAfter) {
-        if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED ||
-                checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-            mDoAfter = doAfter;
-            requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                            Manifest.permission.READ_EXTERNAL_STORAGE},
-                    PERMISSIONS_REQUEST_EXTERNAL_STORAGE);
-        } else {
-            doAfter.run();
-        }
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
-        switch (requestCode) {
-            case PERMISSIONS_REQUEST_EXTERNAL_STORAGE: {
-                // If request is cancelled, the result arrays are empty.
-                if (grantResults.length > 0
-                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    if (mDoAfter != null) {
-                        mDoAfter.run();
-                        mDoAfter = null;
-                    }
-                }
-            }
-        }
-    }
-
-    private void doSetRemoteHeader(final int position) {
-        runWithStoragePermissions(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    // must be unique filename
-                    RemoteHeaderInfo ri = mFilterRemoteHeadersList.get(position);
-                    File localHeaderFile = File.createTempFile("header_", null, getExternalCacheDir());
-                    mCleanupTmpFiles.add(localHeaderFile);
-                    mProgress.setVisibility(View.VISIBLE);
-                    Toast.makeText(BrowseHeaderActivity.this, R.string.download_header_notice, Toast.LENGTH_SHORT).show();
-                    FetchHeaderTask fetch = new FetchHeaderTask(false);
-                    fetch.execute(ri.mUri, localHeaderFile.getAbsolutePath());
-                } catch (IOException e){
-                    Toast.makeText(BrowseHeaderActivity.this, R.string.download_header_failed_notice, Toast.LENGTH_LONG).show();
-                }
-            }
-        });
-    }
-
-    private void downloadRemoteHeader(final int position) {
-        runWithStoragePermissions(new Runnable() {
-            @Override
-            public void run() {
-                // must be unique filename
-                RemoteHeaderInfo ri = mFilterRemoteHeadersList.get(position);
-                File localHeaderFile = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), ri.mImage);
-                mProgress.setVisibility(View.VISIBLE);
-                Toast.makeText(BrowseHeaderActivity.this, R.string.download_header_notice, Toast.LENGTH_SHORT).show();
-                FetchHeaderTask fetch = new FetchHeaderTask(true);
-                fetch.execute(ri.mUri, localHeaderFile.getAbsolutePath());
-            }
-        });
-    }
-
-    private void doSetRemoteHeaderPost(String headerFile) {
-        if (!new File(headerFile).exists()) {
-            Toast.makeText(BrowseHeaderActivity.this, R.string.download_header_failed_notice, Toast.LENGTH_LONG).show();
-            return;
-        }
-        final Uri imageUri = Uri.fromFile(new File(headerFile));
-        Settings.System.putString(getContentResolver(), Settings.System.STATUS_BAR_CUSTOM_HEADER_PROVIDER, "file");
-        Settings.System.putString(getContentResolver(), Settings.System.STATUS_BAR_FILE_HEADER_IMAGE, imageUri.toString());
-        Toast.makeText(BrowseHeaderActivity.this, R.string.custom_header_image_notice, Toast.LENGTH_LONG).show();
-    }
-
-    private List<RemoteHeaderInfo> getHeadersList() {
-        String headerData = NetworkUtils.downloadUrlMemoryAsString(HEADERS_LIST_URI);
-        if (TextUtils.isEmpty(headerData)) {
-            return null;
-        }
-        List<RemoteHeaderInfo> urlList = new ArrayList<RemoteHeaderInfo>();
-        try {
-            JSONArray headers = new JSONArray(headerData);
-            for (int i = 0; i < headers.length(); i++) {
-                JSONObject build = headers.getJSONObject(i);
-                String fileName = build.getString("filename");
-                String creator = null;
-                if (build.has("creator")) {
-                    creator = build.getString("creator");
-                    mCreatorList.add(creator);
-                }
-                String displayName = null;
-                if (build.has("name")) {
-                    displayName = build.getString("name");
-                }
-                String tag = null;
-                if (build.has("tag")) {
-                    tag = build.getString("tag");
-                } else {
-                    tag = getDefaultTag(fileName);
-                }
-                if (TextUtils.isEmpty(tag)) {
-                    continue;
-                }
-                mTagList.add(tag);
-                if (fileName.lastIndexOf(".") != -1) {
-                    String ext = fileName.substring(fileName.lastIndexOf("."));
-                    if (ext.equals(".png") || ext.equals(".jpg")) {
-                        RemoteHeaderInfo wi = new RemoteHeaderInfo();
-                        wi.mImage = fileName;
-                        wi.mThumbUri = HEADERS_THUMB_URI + fileName;
-                        wi.mUri = HEADERS_FULL_URI + fileName;
-                        wi.mCreator = TextUtils.isEmpty(creator) ? DEFAULT_CREATOR : creator;
-                        wi.mDisplayName = TextUtils.isEmpty(displayName) ? fileName : displayName;
-                        wi.mTag = tag;
-                        urlList.add(wi);
-                        if (DEBUG) Log.d(TAG, "add remote header = " + wi.mUri);
-                    }
-                }
-            }
-        } catch (Exception e) {
-        }
-        return urlList;
-    }
-
-    private String getDefaultTag(String headerName) {
-        Pattern pattern = Pattern.compile("^[a-zA-Z]+");
-        Matcher matcher = pattern.matcher(headerName);
-        if (matcher.find()) {
-            return matcher.group();
-        }
-        return DEFAULT_TAG;
-    }
-
-    private void showLocal() {
-        mRemoteMode = false;
-        mSelectSpinnerAdapter.clear();
-        mSelectSpinnerAdapter.addAll(mLabelList);
-        mHeaderListView.setAdapter(mHeaderListAdapter);
-        mHeaderSelect.setSelection(0);
-    }
-
-    private void showRemote(){
-        mHeaderListView.setAdapter(mRemoteHeaderListAdapter);
-        if (!mRemoteLoaded) {
-            mSelectSpinnerAdapter.clear();
-            mProgress.setVisibility(View.VISIBLE);
-            FetchHeaderListTask fetch = new FetchHeaderListTask();
-            fetch.execute();
-        } else {
-            mRemoteMode = true;
-            mSelectSpinnerAdapter.clear();
-            mSelectSpinnerAdapter.addAll(mTagDisplayList);
-            mHeaderSelect.setSelection(0);
-            filterRemoteWallpapers(FILTER_BY_TAG, mTagSortedList.get(0));
-        }
-    }
-
-    private void filterRemoteWallpapers(int filterCriteria, String filterString) {
-        mFilterRemoteHeadersList.clear();
-        for (RemoteHeaderInfo ri : mRemoteHeadersList) {
-            if (ri.matches(filterCriteria, filterString)){
-                mFilterRemoteHeadersList.add(ri);
-            }
-        }
-        mRemoteHeaderListAdapter.notifyDataSetChanged();
+        params.gravity = Gravity.CENTER_HORIZONTAL;
+        mHeaderListView.setLayoutParams(params);
     }
 }

@@ -24,7 +24,6 @@ android_app {
         "androidx.recyclerview_recyclerview",
         "androidx.gridlayout_gridlayout",
         "com.google.android.material_material",
-        "lib-picasso-target",
         "SettingsLib",
     ],
     resource_dirs: ["res"],
@@ -38,13 +37,4 @@ android_app {
     },
 
     system_ext_specific: true,
-}
-
-// Enumerate target prebuilts to avoid linker warnings
-java_import {
-
-    name: "lib-picasso-target",
-    installable: false,
-    jars: ["libs/picasso-2.5.2.jar"],
-
 }
