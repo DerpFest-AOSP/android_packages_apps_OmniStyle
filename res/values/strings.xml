@@ -17,10 +17,19 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -->
 <resources>
     <string name="browse_header">Headers</string>
-    <string name="custom_header_image_notice">Header image set</string>
-    <string name="header_creator_label">Creator\u003a </string>
     <string name="pick_header">Select header</string>
-    <string name="sort_by_creator_menu">Sort by creator</string>
-    <string name="sort_by_tag_menu">Sort by tag</string>
-    <string name="sort_by_default_menu">Sort by name</string>
+    <string name="custom_header_image_notice">Header image set</string>
+    <string name="navigate_up">Navigate up</string>
+    <string name="header_current">Current header</string>
+    <string name="header_selected">Selected</string>
+    <string name="header_by_creator">by %1$s</string>
+    <string name="header_pack_summary">%1$s · %2$s</string>
+    <string name="header_loading">Loading headers</string>
+    <string name="header_empty_title">No header packs installed</string>
+    <string name="header_empty_summary">Installed header packs will show up here</string>
+    <string name="header_pack_empty">This pack has no headers</string>
+    <plurals name="header_count">
+        <item quantity="one">%d header</item>
+        <item quantity="other">%d headers</item>
+    </plurals>
 </resources>

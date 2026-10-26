@@ -17,24 +17,35 @@
 android_app {
     name: "OmniStyle",
 
-    static_libs: [
-        "androidx.appcompat_appcompat",
-        "androidx.core_core",
-        "androidx.cardview_cardview",
-        "androidx.recyclerview_recyclerview",
-        "androidx.gridlayout_gridlayout",
-        "com.google.android.material_material",
-        "SettingsLib",
+    srcs: [
+        "src/**/*.java",
+        "src/**/*.kt",
     ],
     resource_dirs: ["res"],
     manifest: "AndroidManifest.xml",
-    srcs: ["src/**/*.java"],
-    privileged: true,
 
+    static_libs: [
+        "androidx.appcompat_appcompat",
+        "androidx.core_core",
+        "com.google.android.material_material",
+
+        // Header picker. Depending on androidx.compose.runtime_runtime makes Soong
+        // apply the Compose compiler plugin.
+        "androidx.activity_activity-compose",
+        "androidx.compose.foundation_foundation",
+        "androidx.compose.material3_material3",
+        "androidx.compose.material_material-icons-core",
+        "androidx.compose.runtime_runtime",
+        "androidx.compose.ui_ui",
+        "kotlinx_coroutines",
+        "kotlinx_coroutines_android",
+    ],
+
+    privileged: true,
     platform_apis: true,
+    system_ext_specific: true,
+
     optimize: {
         enabled: false,
     },
-
-    system_ext_specific: true,
 }

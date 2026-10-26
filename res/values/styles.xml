@@ -10,4 +10,12 @@
         <item name="android:windowLightNavigationBar">?attr/isLightTheme</item>
     </style>
 
+    <!-- The picker draws its own top app bar and handles window insets. -->
+    <style name="Theme.OmniStyle.NoActionBar" parent="Theme.OmniStyle">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
+
 </resources>
